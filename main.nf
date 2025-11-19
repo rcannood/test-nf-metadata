@@ -100,39 +100,40 @@ workflow {
     println "configFiles: ${workflow.configFiles}"
     
     println "\n" + "="*80
-    println "CHECKING FOR SCRIPTFILE OBJECT"
+    println "EXPLORING ASSET MANAGER / REVISION INFO"
     println "="*80
     
-    // Try to see if we can access ScriptFile somehow
+    // Try to access AssetManager or ScriptFile which might contain RevisionInfo
     try {
-        if (session) {
-            // Check if there's a script property
-            def script = session.script
-            if (script) {
-                println "session.script exists: true"
-                println "session.script class: ${script.class.name}"
-                
-                // Try to access scriptFile from the script
-                try {
-                    println "script.scriptFile: ${script.scriptFile}"
-                } catch (Exception e) {
-                    println "Could not access script.scriptFile: ${e.message}"
+        // Check if projectDir contains a .git folder (indicates git repo)
+        def gitDir = new File("${workflow.projectDir}/.git")
+        println "Has .git directory: ${gitDir.exists()}"
+        
+        if (gitDir.exists()) {
+            // Try to read git config to find provider info
+            def gitConfig = new File("${workflow.projectDir}/.git/config")
+            if (gitConfig.exists()) {
+                println "\n--- Git Config ---"
+                gitConfig.text.split('\n').findAll { line ->
+                    line.contains('url') || line.contains('remote')
+                }.each { line ->
+                    println line.trim()
                 }
-                
-                // Check for revision-related methods
-                println "\n--- Script object methods ---"
-                script.metaClass.methods.findAll { method ->
-                    def name = method.name.toLowerCase()
-                    name.contains('revision') || name.contains('git') || name.contains('repo')
-                }.each { method ->
-                    println "  ${method.name}()"
-                }
-            } else {
-                println "session.script: null"
             }
         }
+        
+        // Check for ScriptRunner via session
+        println "\n--- Checking for ScriptRunner ---"
+        def sessionFields = session.class.declaredFields.findAll { field ->
+            field.name.toLowerCase().contains('script') || 
+            field.name.toLowerCase().contains('runner')
+        }
+        sessionFields.each { field ->
+            println "Session field: ${field.name} (${field.type.simpleName})"
+        }
+        
     } catch (Exception e) {
-        println "Could not access script objects: ${e.message}"
+        println "Error exploring git/revision info: ${e.message}"
         e.printStackTrace()
     }
     
